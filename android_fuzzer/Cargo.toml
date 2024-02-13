@@ -1,0 +1,26 @@
+[package]
+name = "android_fuzzer"
+version = "1.0.0"
+authors = ["Andrea Fioraldi <andreafioraldi@gmail.com>"]
+edition = "2021"
+
+[features]
+default = ["filesystem"]
+asan = []
+classic = []
+snapshot = []
+filesystem = []
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = 3
+debug = true
+
+[dependencies]
+libafl = { git = "https://github.com/AFLplusplus/LibAFL", rev = "dede78159c103fbca32615e5e1ea2402d49106b3" }
+libafl_bolts  = { git = "https://github.com/AFLplusplus/LibAFL", rev = "dede78159c103fbca32615e5e1ea2402d49106b3" }
+libafl_qemu = { git = "https://github.com/AFLplusplus/LibAFL", rev = "dede78159c103fbca32615e5e1ea2402d49106b3" , features = ["aarch64"] }
+env_logger = "0.10"
+portpicker = "0.1.1"
+libc = "0.2"
