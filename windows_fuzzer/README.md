@@ -4,10 +4,10 @@ Here is the root directory of the Windows NTFS Fuzzing artifacts.
 
 ## Overview
 
-- target_harness/: Windows code to run in the target VM. **Please start here if you wish to reproduce the experiments.**
-- fuzzers/: Home directory of the fuzzers built and compared in the paper.
-    - kafl/: kAFL / Nyx fuzzer's home directory. Go there to get the instructions to replicate the kAFL experiment.
-    - libafl/: LibAFL fuzzer's home directory. Go there to get the code to replicate the LibAFL experiment.
+- `target_harness/`: Windows code to run in the target VM. **Please start here if you wish to reproduce the experiments.**
+- `fuzzers/`: Home directory of the fuzzers built and compared in the paper.
+    - `kafl/`: kAFL / Nyx fuzzer's home directory. Go there to get the instructions to replicate the kAFL experiment.
+    - `libafl/`: LibAFL fuzzer's home directory. Go there to get the code to replicate the LibAFL experiment.
 
 Generally speaking, these instructions should be taken with a grain of salt. You may have to adapt parts of the scripts & commands specified there, since each build environment differs.
 

@@ -415,7 +415,6 @@ int main()
 
     target_init();
 
-    std::cout << "Start..." << std::endl;
 #ifdef USE_NYX
     std::cout << "Using NYX fuzzing" << std::endl;
 

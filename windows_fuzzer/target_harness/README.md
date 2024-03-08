@@ -20,6 +20,8 @@ Maybe other versions will work, maybe not.
 
 Building must be done through Visual Studio (no easier solution was found) in a Windows 10 environment.
 
+The Visual Studio project can be found in `vs_project`.
+
 Import the Project `LibaflNtfsFuzz` in Visual Studio.
 Three targets are available:
 - `Debug`: Builds a debug version of the target without going through the fuzzer, with a mock command interface. Convenient during harness development without having to run it through the fuzzer. The final executable is generated in the root directory of the project with the name `LibaflNtfsFuzz_Debug`.
