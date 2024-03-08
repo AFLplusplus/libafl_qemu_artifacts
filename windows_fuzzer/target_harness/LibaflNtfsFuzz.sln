@@ -1,0 +1,43 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.6.33712.159
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "LibaflNtfsFuzz", "LibaflNtfsFuzz.vcxproj", "{09AC6067-090D-4745-8FFF-0C7D6110C396}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Debug|x86 = Debug|x86
+		libafl|x64 = libafl|x64
+		libafl|x86 = libafl|x86
+		nyx|x64 = nyx|x64
+		nyx|x86 = nyx|x86
+		Release|x64 = Release|x64
+		Release|x86 = Release|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{09AC6067-090D-4745-8FFF-0C7D6110C396}.Debug|x64.ActiveCfg = Debug|x64
+		{09AC6067-090D-4745-8FFF-0C7D6110C396}.Debug|x64.Build.0 = Debug|x64
+		{09AC6067-090D-4745-8FFF-0C7D6110C396}.Debug|x86.ActiveCfg = Debug|Win32
+		{09AC6067-090D-4745-8FFF-0C7D6110C396}.Debug|x86.Build.0 = Debug|Win32
+		{09AC6067-090D-4745-8FFF-0C7D6110C396}.libafl|x64.ActiveCfg = libafl|x64
+		{09AC6067-090D-4745-8FFF-0C7D6110C396}.libafl|x64.Build.0 = libafl|x64
+		{09AC6067-090D-4745-8FFF-0C7D6110C396}.libafl|x86.ActiveCfg = libafl|Win32
+		{09AC6067-090D-4745-8FFF-0C7D6110C396}.libafl|x86.Build.0 = libafl|Win32
+		{09AC6067-090D-4745-8FFF-0C7D6110C396}.nyx|x64.ActiveCfg = nyx|x64
+		{09AC6067-090D-4745-8FFF-0C7D6110C396}.nyx|x64.Build.0 = nyx|x64
+		{09AC6067-090D-4745-8FFF-0C7D6110C396}.nyx|x86.ActiveCfg = nyx|Win32
+		{09AC6067-090D-4745-8FFF-0C7D6110C396}.nyx|x86.Build.0 = nyx|Win32
+		{09AC6067-090D-4745-8FFF-0C7D6110C396}.Release|x64.ActiveCfg = Release|x64
+		{09AC6067-090D-4745-8FFF-0C7D6110C396}.Release|x64.Build.0 = Release|x64
+		{09AC6067-090D-4745-8FFF-0C7D6110C396}.Release|x86.ActiveCfg = Release|Win32
+		{09AC6067-090D-4745-8FFF-0C7D6110C396}.Release|x86.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {0B060FED-ED9C-42AB-ABBD-AC8FBD54DFAD}
+	EndGlobalSection
+EndGlobal

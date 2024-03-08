@@ -1,0 +1,6 @@
+*.qcow2
+*.vhd
+*.json
+target*/
+
+

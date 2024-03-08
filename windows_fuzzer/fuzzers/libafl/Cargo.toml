@@ -1,0 +1,24 @@
+[package]
+name = "qemu_windows_ntfs"
+version = "1.0.0"
+authors = ["Romain Malmain <romain.malmain@pm.me>"]
+edition = "2021"
+
+[features]
+default = ["std"]
+std = []
+
+[profile.release]
+incremental = true
+debug = true
+lto = "fat"
+codegen-units = 1
+
+[dependencies]
+libafl = { git = "https://github.com/AFLplusplus/LibAFL", branch = "qemu_exit_handler" }
+libafl_bolts = { git = "https://github.com/AFLplusplus/LibAFL", branch = "qemu_exit_handler" }
+libafl_targets = { git = "https://github.com/AFLplusplus/LibAFL", branch = "qemu_exit_handler" }
+libafl_qemu = { git = "https://github.com/AFLplusplus/LibAFL", branch = "qemu_exit_handler", features = ["x86_64", "systemmode"] }
+env_logger = "0.11"
+clap = { version="4.5", features=["derive"]}
+blake3 = "1.5"
