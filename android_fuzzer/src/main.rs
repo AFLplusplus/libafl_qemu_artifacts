@@ -36,24 +36,25 @@ when using the classic edge cov, add also LIBAFL_EDGES_MAP_SIZE=65536
 
 #![allow(non_upper_case_globals)]
 
-use std::{env, ffi::CStr, path::PathBuf, process, ptr, ptr::addr_of_mut, str, time::Duration};
 use libafl::prelude::*;
 use libafl_bolts::prelude::*;
-use libafl::prelude::tui::ui::TuiUI;
-use libafl::prelude::tui::TuiMonitor;
 use libafl_qemu::{
     asan::{init_with_asan, QemuAsanHelper, QemuAsanOptions},
+    calls::{FullBacktraceCollector, QemuCallTracerHelper},
     cmplog::{CmpLogObserver, QemuCmpLogHelper, QemuCmpLogRoutinesHelper},
-    calls::{QemuCallTracerHelper, FullBacktraceCollector},
-    edges::{edges_map_mut_slice, std_edges_map_observer, QemuEdgeCoverageClassicHelper, QemuEdgeCoverageHelper, MAX_EDGES_NUM},
+    edges::{
+        edges_map_mut_slice, std_edges_map_observer, QemuEdgeCoverageClassicHelper,
+        QemuEdgeCoverageHelper, MAX_EDGES_NUM,
+    },
     elf::EasyElf,
     emu::Emulator,
-    helper::{QemuInstrumentationFilter, HasInstrumentationFilter, QemuHelper, QemuHelperTuple},
+    helper::{HasInstrumentationFilter, QemuFilterList, QemuHelper, QemuHelperTuple},
     hooks::QemuHooks,
     snapshot::QemuSnapshotHelper,
     QemuExecutor, Regs, SYS_close, SYS_faccessat, SYS_lseek, SYS_newfstatat, SYS_openat, SYS_read,
     SYS_rt_sigprocmask, SYS_write, SyscallHookResult,
 };
+use std::{env, ffi::CStr, path::PathBuf, process, ptr, ptr::addr_of_mut, str, time::Duration};
 
 const MAGIC_FD: u64 = 0xabadcafe;
 const MAGIC_FILENAME: &'static str = "SLASTI_MORMANTI";
@@ -251,12 +252,12 @@ pub fn main() {
     let mut env: Vec<(String, String)> = env::vars().collect();
 
     #[cfg(feature = "asan")]
-     let (emu, asan) = init_with_asan(&mut args, &mut env).unwrap();
+    let (emu, asan) = init_with_asan(&mut args, &mut env).unwrap();
     #[cfg(not(feature = "asan"))]
     let emu = Emulator::new(&mut args, &mut env).unwrap();
 
     emu.force_dfl(); // Ignore target crash sig handlers
-    
+
     let mut elf_buffer = Vec::new();
     let elf = EasyElf::from_file(emu.binary_path(), &mut elf_buffer).unwrap();
 
@@ -265,31 +266,32 @@ pub fn main() {
         .expect(&format!("Symbol {} not found", HARNESS_NAME));
     println!("{} @ {:#x}", HARNESS_NAME, harness_ptr);
 
-    if cores.is_none() { // Repro
+    if cores.is_none() {
+        // Repro
         let repro = arg;
-    
+
         #[cfg(feature = "asan")]
         let mut hooks = QemuHooks::reproducer(
             emu.clone(),
             tuple_list!(
-                QemuCallTracerHelper::new(QemuInstrumentationFilter::None, tuple_list!(FullBacktraceCollector::new())),
-                QemuAsanHelper::with_asan_report(asan, QemuInstrumentationFilter::None, QemuAsanOptions::None),
+                QemuCallTracerHelper::new(
+                    QemuFilterList::None,
+                    tuple_list!(FullBacktraceCollector::new())
+                ),
+                QemuAsanHelper::with_asan_report(asan, QemuFilterList::None, QemuAsanOptions::None),
             ),
         );
-        
-            #[cfg(not(feature = "asan"))]
-            let mut hooks = QemuHooks::reproducer(
-            emu.clone(),
-            (),
-        );
-        
+
+        #[cfg(not(feature = "asan"))]
+        let mut hooks = QemuHooks::reproducer(emu.clone(), ());
+
         /*emu.set_breakpoint(harness_ptr);
         unsafe { emu.run() };
-        
+
         println!("Break at {:#x}", emu.read_reg::<_, u64>(Regs::Pc).unwrap());
-        
+
         emu.remove_breakpoint(harness_ptr);
-        
+
         // Now that the libs are loaded, build the intrumentation filter
         let mut allow_list = vec![];
         for region in emu.mappings() {
@@ -300,11 +302,11 @@ pub fn main() {
                 }
             }
         }
-        
-        hooks.match_helper_mut::<QemuAsanHelper>().unwrap().update_filter(QemuInstrumentationFilter::AllowList(allow_list.clone()), &emu);*/
-     
+
+        hooks.match_helper_mut::<QemuAsanHelper>().unwrap().update_filter(QemuFilterList::AllowList(allow_list.clone()), &emu);*/
+
         let input = BytesInput::from_file(repro).unwrap();
-        
+
         let mut test_harness = |input: &BytesInput| {
             input.to_file(MAGIC_FILENAME).unwrap();
             unsafe { emu.run() };
@@ -312,7 +314,7 @@ pub fn main() {
         };
 
         hooks.repro_run(&mut test_harness, &input);
-        
+
         return;
     }
     let cores = cores.unwrap();
@@ -321,23 +323,31 @@ pub fn main() {
     if let Some(entry) = elf.entry_point(emu.load_addr()) {
         emu.set_breakpoint(entry);
         unsafe { emu.run() };
-        
-        println!("Entry break at {:#x}", emu.read_reg::<_, u64>(Regs::Pc).unwrap());
-        
+
+        println!(
+            "Entry break at {:#x}",
+            emu.read_reg::<_, u64>(Regs::Pc).unwrap()
+        );
+
         emu.remove_breakpoint(entry);
     }
-    
+
     // Now that the libs are loaded, build the intrumentation filter
     let mut allow_list = vec![];
     for region in emu.mappings() {
         if let Some(path) = region.path() {
             if path.contains("imagecodec") || path.contains("harness") {
                 allow_list.push(region.start()..region.end());
-                println!("Instrument {:?} {:#x}-{:#x}", path, region.start(), region.end());
+                println!(
+                    "Instrument {:?} {:#x}-{:#x}",
+                    path,
+                    region.start(),
+                    region.end()
+                );
             }
         }
     }
-    
+
     let harness_ptr = elf
         .resolve_symbol(HARNESS_NAME, emu.load_addr())
         .expect(&format!("Symbol {} not found", HARNESS_NAME));
@@ -358,8 +368,8 @@ pub fn main() {
     let saved_cpu_states: Vec<_> = (0..emu.num_cpus())
         .map(|i| emu.cpu_from_index(i).save_state())
         .collect();
-    
-    #[cfg(feature = "snapshot")]    
+
+    #[cfg(feature = "snapshot")]
     let mut snapshot_helper = {
         // Create the helper and take the snapshot here to share the pages between all the clients
         // thanks to the Laucher using fork()
@@ -383,7 +393,7 @@ pub fn main() {
 
         ExitKind::Ok
     };
-    
+
     let mut run_client = |state: Option<_>, mut mgr: LlmpRestartingEventManager<_, _>, _core_id| {
         // Create an observation channel using the coverage map
         #[cfg(not(feature = "classic"))]
@@ -395,9 +405,7 @@ pub fn main() {
             ))
         };
         #[cfg(feature = "classic")]
-        let edges_observer = unsafe {
-            HitcountsMapObserver::new(std_edges_map_observer("edges"))
-        };
+        let edges_observer = unsafe { HitcountsMapObserver::new(std_edges_map_observer("edges")) };
 
         // Create an observation channel to keep track of the execution time
         let time_observer = TimeObserver::new("time");
@@ -419,7 +427,7 @@ pub fn main() {
             // Time feedback, this one does not need a feedback state
             TimeFeedback::with_observer(&time_observer)
         );
-        
+
         // A feedback to choose if an input is a solution or not
         let mut objective = feedback_or_fast!(CrashFeedback::new()); //, TimeoutFeedback::new());
 
@@ -456,29 +464,37 @@ pub fn main() {
         let mut fuzzer = StdFuzzer::new(scheduler, feedback, objective);
 
         #[cfg(not(feature = "classic"))]
-        let helpers = tuple_list!(
-            QemuEdgeCoverageHelper::new(QemuInstrumentationFilter::AllowList(allow_list.clone())));
+        let helpers = tuple_list!(QemuEdgeCoverageHelper::new(QemuFilterList::AllowList(
+            allow_list.clone()
+        )));
 
         #[cfg(feature = "classic")]
-        let helpers = tuple_list!(
-            QemuEdgeCoverageClassicHelper::new(QemuInstrumentationFilter::AllowList(allow_list.clone())));
+        let helpers = tuple_list!(QemuEdgeCoverageClassicHelper::new(
+            QemuFilterList::AllowList(allow_list.clone())
+        ));
 
         #[cfg(feature = "filesystem")]
         let helpers = helpers.append(QemuFilesystemBytesHelper::default());
-        
+
         #[cfg(feature = "snapshot")]
         let helpers = helpers.append(snapshot_helper.take().unwrap());
-        
-        #[cfg(feature = "asan")]
-        let helpers = helpers.append(QemuAsanHelper::new(asan.take().unwrap(), QemuInstrumentationFilter::AllowList(allow_list.clone()), QemuAsanOptions::Snapshot));
-        
-        let helpers = helpers.append(QemuCmpLogHelper::new(QemuInstrumentationFilter::AllowList(allow_list.clone()))).append(
-            QemuCmpLogRoutinesHelper::new(QemuInstrumentationFilter::AllowList(allow_list.clone())));
 
-        let mut hooks = QemuHooks::new(
-            emu.clone(),
-            helpers,
-        );
+        #[cfg(feature = "asan")]
+        let helpers = helpers.append(QemuAsanHelper::new(
+            asan.take().unwrap(),
+            QemuFilterList::AllowList(allow_list.clone()),
+            QemuAsanOptions::Snapshot,
+        ));
+
+        let helpers = helpers
+            .append(QemuCmpLogHelper::new(QemuFilterList::AllowList(
+                allow_list.clone(),
+            )))
+            .append(QemuCmpLogRoutinesHelper::new(QemuFilterList::AllowList(
+                allow_list.clone(),
+            )));
+
+        let mut hooks = QemuHooks::new(emu.clone(), helpers);
 
         // Create a QEMU in-process executor
         let executor = QemuExecutor::new(
@@ -488,7 +504,7 @@ pub fn main() {
             &mut fuzzer,
             &mut state,
             &mut mgr,
-            timeout
+            timeout,
         )
         .expect("Failed to create QemuExecutor");
 
@@ -511,12 +527,12 @@ pub fn main() {
         let i2s = StdMutationalStage::new(I2SRandReplace::new());
 
         let mut stages = tuple_list!(calibration, tracing, i2s, power);
-        
+
         //let mut stages = tuple_list!(calibration, power);
 
         fuzzer.fuzz_loop(&mut stages, &mut executor, &mut state, &mut mgr)?;
         //fuzzer.fuzz_loop_for(&mut stages, &mut executor, &mut state, &mut mgr, 200)?;
-        
+
         //mgr.on_restart(&mut state)?;
 
         Ok(())
@@ -527,7 +543,7 @@ pub fn main() {
 
     // The monitor reporter for the broker
     let monitor = MultiMonitor::new(|s| println!("{}", s));
-    
+
     //Setup an Monitor with AFL-Style UI to display the stats
     //let ui = TuiUI::with_version(
     //    String::from("Libfuzzer For Libpng"),
