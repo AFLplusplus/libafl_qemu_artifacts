@@ -15,10 +15,10 @@ lto = "fat"
 codegen-units = 1
 
 [dependencies]
-libafl = { git = "https://github.com/AFLplusplus/LibAFL", branch = "qemu_exit_handler" }
-libafl_bolts = { git = "https://github.com/AFLplusplus/LibAFL", branch = "qemu_exit_handler" }
-libafl_targets = { git = "https://github.com/AFLplusplus/LibAFL", branch = "qemu_exit_handler" }
-libafl_qemu = { git = "https://github.com/AFLplusplus/LibAFL", branch = "qemu_exit_handler", features = ["x86_64", "systemmode"] }
+libafl = { git = "https://github.com/AFLplusplus/LibAFL", rev = "84b938aa38b73d36e762518e43dc8517b50410f9" }
+libafl_bolts = { git = "https://github.com/AFLplusplus/LibAFL", rev = "84b938aa38b73d36e762518e43dc8517b50410f9" }
+libafl_targets = { git = "https://github.com/AFLplusplus/LibAFL", rev = "84b938aa38b73d36e762518e43dc8517b50410f9" }
+libafl_qemu = { git = "https://github.com/AFLplusplus/LibAFL", rev = "84b938aa38b73d36e762518e43dc8517b50410f9", features = ["x86_64", "systemmode"] }
 env_logger = "0.11"
 clap = { version="4.5", features=["derive"]}
 blake3 = "1.5"

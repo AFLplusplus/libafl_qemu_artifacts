@@ -4,6 +4,7 @@ use core::time::Duration;
 use std::{env, fs, path::PathBuf, process};
 
 use clap::Parser;
+use libafl::observers::CanTrack;
 use libafl::{
     corpus::{InMemoryOnDiskCorpus, OnDiskCorpus},
     events::{launcher::Launcher, EventConfig},
@@ -27,9 +28,11 @@ use libafl_bolts::{
     shmem::{ShMemProvider, StdShMemProvider},
     tuples::tuple_list,
 };
+use libafl_qemu::executor::stateful::StatefulQemuExecutor;
+use libafl_qemu::executor::QemuExecutorState;
 use libafl_qemu::{
     edges::QemuEdgeCoverageClassicHelper, emu::Emulator, EmuExitReasonError, FastSnapshotManager,
-    HandlerError, HandlerResult, QemuExecutor, QemuHooks, QemuInstrumentationAddressRangeFilter,
+    HandlerError, HandlerResult, QemuHooks, QemuInstrumentationAddressRangeFilter,
     QemuInstrumentationPagingFilter, QemuSnapshotManager, SnapshotManager, StdEmuExitHandler,
 };
 use libafl_targets::std_edges_map_observer;
@@ -160,35 +163,37 @@ pub fn fuzz() {
         let emu = Emulator::new(&qemu_args, &env, emu_exit_handler).unwrap();
 
         // The wrapped harness function, calling out to the LLVM-style harness
-        let mut harness = |input: &BytesInput| unsafe {
-            match emu.run_handle(input) {
-                Ok(handler_result) => match handler_result {
-                    HandlerResult::UnhandledExit(unhandled_exit) => {
-                        panic!("Unhandled exit: {}", unhandled_exit)
-                    }
-                    HandlerResult::EndOfRun(exit_kind) => exit_kind,
-                    HandlerResult::Interrupted => {
-                        println!("Interrupted.");
-                        std::process::exit(0);
-                    }
-                },
-                Err(handler_error) => match handler_error {
-                    HandlerError::EmuExitReasonError(emu_exit_reason_error) => {
-                        match emu_exit_reason_error {
-                            EmuExitReasonError::UnknownKind => panic!("unknown kind"),
-                            EmuExitReasonError::UnexpectedExit => ExitKind::Crash,
-                            _ => {
-                                panic!("Emu Exit unhandled error: {:?}", emu_exit_reason_error)
+        let mut harness =
+            |input: &BytesInput, qemu_executor_state: &mut QemuExecutorState<_, _>| unsafe {
+                match emu.run(input, qemu_executor_state) {
+                    Ok(handler_result) => match handler_result {
+                        HandlerResult::UnhandledExit(unhandled_exit) => {
+                            panic!("Unhandled exit: {}", unhandled_exit)
+                        }
+                        HandlerResult::EndOfRun(exit_kind) => exit_kind,
+                        HandlerResult::Interrupted => {
+                            println!("Interrupted.");
+                            std::process::exit(0);
+                        }
+                    },
+                    Err(handler_error) => match handler_error {
+                        HandlerError::QemuExitReasonError(emu_exit_reason_error) => {
+                            match emu_exit_reason_error {
+                                EmuExitReasonError::UnknownKind => panic!("unknown kind"),
+                                EmuExitReasonError::UnexpectedExit => ExitKind::Crash,
+                                _ => {
+                                    panic!("Emu Exit unhandled error: {:?}", emu_exit_reason_error)
+                                }
                             }
                         }
-                    }
-                    _ => panic!("Unhandled error: {:?}", handler_error),
-                },
-            }
-        };
+                        _ => panic!("Unhandled error: {:?}", handler_error),
+                    },
+                }
+            };
 
         // Create an observation channel using the coverage map
-        let edges_observer = unsafe { HitcountsMapObserver::new(std_edges_map_observer("edges")) };
+        let edges_observer =
+            unsafe { HitcountsMapObserver::new(std_edges_map_observer("edges")).track_indices() };
 
         // Create an observation channel to keep track of the execution time
         let time_observer = TimeObserver::new("time");
@@ -197,7 +202,7 @@ pub fn fuzz() {
         // This one is composed by two Feedbacks in OR
         let mut feedback = feedback_or!(
             // New maximization map feedback linked to the edges observer and the feedback state
-            MaxMapFeedback::tracking(&edges_observer, true, true),
+            MaxMapFeedback::new(&edges_observer),
             // Time feedback, this one does not need a feedback state
             TimeFeedback::with_observer(&time_observer)
         );
@@ -225,11 +230,12 @@ pub fn fuzz() {
         });
 
         // A minimization+queue policy to get testcasess from the corpus
-        let scheduler = IndexesLenTimeMinimizerScheduler::new(QueueScheduler::new());
+        let scheduler =
+            IndexesLenTimeMinimizerScheduler::new(&edges_observer, QueueScheduler::new());
 
-        // Setup an havoc mutator with a mutational stage
+        // Setup a havoc mutator with a mutational stage
         let mutator = StdScheduledMutator::new(havoc_mutations());
-        let calibration_feedback = MaxMapFeedback::tracking(&edges_observer, true, true);
+        let calibration_feedback = MaxMapFeedback::new(&edges_observer);
         let mut stages = tuple_list!(
             CalibrationStage::new(&calibration_feedback),
             StdMutationalStage::new(mutator),
@@ -239,7 +245,7 @@ pub fn fuzz() {
         let mut fuzzer = StdFuzzer::new(scheduler, feedback, objective);
 
         let mut hooks = QemuHooks::new(
-            emu.clone(),
+            *emu.qemu(),
             tuple_list!(QemuEdgeCoverageClassicHelper::new(
                 QemuInstrumentationAddressRangeFilter::None,
                 QemuInstrumentationPagingFilter::None,
@@ -248,14 +254,14 @@ pub fn fuzz() {
         );
 
         // Create a QEMU in-process executor
-        let mut executor = QemuExecutor::new(
+        let mut executor = StatefulQemuExecutor::new(
             &mut hooks,
             &mut harness,
             tuple_list!(edges_observer, time_observer),
             &mut fuzzer,
             &mut state,
             &mut mgr,
-            timeout
+            timeout,
         )
         .expect("Failed to create QemuExecutor");
 
